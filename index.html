@@ -122,7 +122,7 @@ footer img{height:70px;width:auto}
 <div id="revlist" class="grid"></div>
 </div></section>
 <section class="s alt"><div class="wrap two" style="align-items:start">
-<div><h2>Leave a review</h2><p>Finished a job with us? Rate your experience and send it in. It opens a text message to us with your review ready to go.</p></div>
+<div><h2>Leave a review</h2><p>Finished a job with us? Rate your experience and send it in. We read every review, and approved ones appear on this page.</p></div>
 <form id="rf">
 <label>Your name<input name="n" required autocomplete="name"></label>
 <label>Town<input name="t" autocomplete="address-level2"></label>
@@ -134,9 +134,10 @@ footer img{height:70px;width:auto}
 <input type="radio" name="r" id="s2" value="2"><label for="s2" title="2 stars" aria-label="2 stars">★</label>
 <input type="radio" name="r" id="s1" value="1"><label for="s1" title="1 star" aria-label="1 star">★</label>
 </div></fieldset>
-<label>Your review<textarea name="m" required></textarea></label>
-<button class="btn" type="submit">Text my review</button>
-<p class="note">Your message opens in your phone's messaging app. You can edit it before sending.</p>
+<label>Your review<textarea name="m" required maxlength="1000"></textarea></label>
+<input name="w" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px">
+<button class="btn" type="submit">Submit review</button>
+<p class="note" id="rn" role="status" aria-live="polite">Your review is sent to us first and appears here once approved.</p>
 </form></div></section>
 </div>
 
@@ -172,6 +173,8 @@ footer img{height:70px;width:auto}
 
 <script>
 var PHONE="+14017148537";
+/* Paste your Apps Script web app URL here to turn on review approval. Leave empty to keep the old text-message flow. */
+var ENDPOINT="https://script.google.com/macros/s/AKfycbwUVmQVA70f8dIv6hn_L1lczj2UJLAaKFL-R37CjImwtI5TsZ_ippqzLdf72Ss6UvC5dA/exec";
 /* Add real customer reviews here: {name:"Jane D.",town:"Warwick",stars:5,text:"..."} */
 var REVIEWS=[];
 var pages=[].slice.call(document.querySelectorAll(".page")),links=[].slice.call(document.querySelectorAll("nav a.l")),nav=document.getElementById("nav"),mb=document.getElementById("mb");
@@ -184,8 +187,12 @@ mb.onclick=function(){var o=nav.classList.toggle("open");mb.setAttribute("aria-e
 document.getElementById("y").textContent=new Date().getFullYear();
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 var rl=document.getElementById("revlist");
-if(REVIEWS.length){rl.innerHTML=REVIEWS.map(function(v){return '<div class="rev"><div class="st" aria-label="'+v.stars+' out of 5 stars">'+"★".repeat(v.stars)+'</div><p>'+esc(v.text)+'</p><strong>'+esc(v.name)+(v.town?', '+esc(v.town):'')+'</strong></div>'}).join("")}
-else{rl.style.display="block";rl.innerHTML='<div class="empty"><h3>Reviews are coming soon</h3><p>Worked with us? Be the first to leave a review below.</p></div>'}
+function renderReviews(list){
+if(list.length){rl.style.display="";rl.innerHTML=list.map(function(v){return '<div class="rev"><div class="st" aria-label="'+v.stars+' out of 5 stars">'+"\u2605".repeat(v.stars)+'</div><p>'+esc(v.text)+'</p><strong>'+esc(v.name)+(v.town?', '+esc(v.town):'')+'</strong></div>'}).join("")}
+else{rl.style.display="block";rl.innerHTML='<div class="empty"><h3>Reviews are coming soon</h3><p>Worked with us? Be the first to leave a review below.</p></div>'}}
+renderReviews(REVIEWS);
+if(ENDPOINT){fetch(ENDPOINT+"?a=list").then(function(r){return r.json()}).then(function(d){if(d&&d.length)renderReviews(REVIEWS.concat(d))}).catch(function(){})}
+else{document.getElementById("rn").textContent="Your message opens in your phone's messaging app. You can edit it before sending."}
 var TW={ri:["Barrington","Bristol","Burrillville","Central Falls","Charlestown","Coventry","Cranston","Cumberland","East Greenwich","East Providence","Exeter","Foster","Glocester","Hopkinton","Jamestown","Johnston","Lincoln","Little Compton","Middletown","Narragansett","New Shoreham","Newport","North Kingstown","North Providence","North Smithfield","Pawtucket","Portsmouth","Providence","Richmond","Scituate","Smithfield","South Kingstown","Tiverton","Warren","Warwick","West Greenwich","West Warwick","Westerly","Woonsocket"],
 ma:["Attleboro","Bellingham","Blackstone","Douglas","Fall River","Millville","North Attleborough","Rehoboth","Seekonk","Somerset","Swansea","Uxbridge","Westport"],
 ct:["Killingly","North Stonington","Putnam","Sterling","Stonington","Thompson","Voluntown"]},
@@ -199,7 +206,13 @@ function sms(body){location.href="sms:"+PHONE+"?&body="+encodeURIComponent(body)
 document.getElementById("qf").onsubmit=function(e){e.preventDefault();var f=e.target;
 sms("Hi EZ Property Services, I'd like a free quote.\nName: "+f.n.value+"\nPhone: "+f.p.value+"\nTown: "+f.t.value+"\nService: "+f.s.value+"\nDetails: "+f.d.value)};
 document.getElementById("rf").onsubmit=function(e){e.preventDefault();var f=e.target;
-sms("Review for EZ Property Services\n"+f.r.value+"/5 stars\n"+f.m.value+"\n- "+f.n.value+(f.t.value?", "+f.t.value:""))};
+if(!ENDPOINT){sms("Review for EZ Property Services\n"+f.r.value+"/5 stars\n"+f.m.value+"\n- "+f.n.value+(f.t.value?", "+f.t.value:""));return}
+if(f.w.value)return;
+var b=f.querySelector("button"),n=document.getElementById("rn");b.disabled=true;
+fetch(ENDPOINT,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({n:f.n.value,t:f.t.value,r:f.r.value,m:f.m.value})})
+.then(function(){f.reset();n.textContent="Thank you! Your review was sent and will appear here once we approve it."})
+.catch(function(){n.textContent="Something went wrong. Please call (401) 714-8537."})
+.then(function(){b.disabled=false})};
 </script>
 </body>
 </html>
